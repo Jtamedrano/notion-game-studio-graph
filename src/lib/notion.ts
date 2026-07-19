@@ -115,16 +115,33 @@ class GameStudioDatasource<
     return page;
   }
 
+  _query(params?: {
+    filter?: QueryDataSourceParameters['filter'];
+    filter_properties?: QueryDataSourceParameters['filter_properties'];
+    start_cursor?: string;
+  }) {
+    return notionClient.dataSources.query({
+      data_source_id: this.datasource_id,
+      filter: params?.filter,
+      start_cursor: params?.start_cursor,
+    });
+  }
+
   async query(params?: {
     filter?: QueryDataSourceParameters['filter'];
     filter_properties?: QueryDataSourceParameters['filter_properties'];
+    start_cursor?: string;
   }) {
-    const response = await notionClient.dataSources.query({
-      data_source_id: this.datasource_id,
-      filter: params?.filter,
-    });
+    const results: QueryResponse['results'] = [];
+    let cursor = params?.start_cursor;
 
-    return response as QueryResponse;
+    do {
+      const response = await this._query({ ...params, start_cursor: cursor });
+      results.push(...response.results);
+      cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
+    } while (cursor);
+
+    return results;
   }
 }
 
@@ -152,6 +169,7 @@ export class DecisionDatasource extends GameStudioDatasource<
         operator: 'equals';
         value: 'Open';
       };
+      start_cursor?: string;
     }
   ) {
     const response = await this.query({
@@ -175,6 +193,7 @@ export class DecisionDatasource extends GameStudioDatasource<
             }
           : {}),
       },
+      start_cursor: params?.start_cursor,
     });
 
     return response;
